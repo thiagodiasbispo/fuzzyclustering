@@ -26,6 +26,12 @@ Este projeto tem as seguintes dependências:
 * Passo 3 - Instalar dependências (Linux) - Com o prompt aberto na pasta do projeto: 
 	* ```$ conda create -n fuzzy --file conda_requirements_linux.txt ```
 
+* Passo 4 - Executar o seguinte comando na pasta do projeto: 
+	* ```$ conda activate fuzzy```
+
+* Passo 5 - Executar comando em seguida:
+	* ```$ jupyter contrib nbextension install --user ```
+
 ## Iniciando o projeto
 * Passo 1 - Iniciar o ambiente virtual do Anaconda:
 	* No linux: ```$ conda activate fuzzy ```
