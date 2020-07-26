@@ -30,7 +30,7 @@ Este projeto tem as seguintes dependências:
 * Passo 2 - Executar o seguinte comando na pasta do projeto: 
 	* ```$ jupyter notebook```
 
-## Criando o ambiente virtual do zero
+## Configurando o ambiente do zero
 * Passo 1 - Download e instalação do [Anaconda](
 ttps://www.anaconda.com/products/individual#Downloads)
 * Passo 2 - Criando o ambiente virtual:
