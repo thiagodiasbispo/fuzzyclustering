@@ -30,11 +30,6 @@ def get_hard_patitions(membership_degree):
 def get_instances_class(qtd=10):
     return list(chain(*[[i]*200 for i in range(qtd)]))
 
-def calc_partition_entropy(membership_degree):
-    n = membership_degree.shape[0]
-    membership_degree = np.log10(membership_degree) * membership_degree
-    return -membership_degree.sum(axis = 1).sum()/n
-
 def calc_partition_coefficient(membership_degree):
     n = membership_degree.shape[0]
     membership_degree = np.power(membership_degree, 2)
