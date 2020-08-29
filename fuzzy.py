@@ -10,6 +10,7 @@ from itertools import product
 
 import pandas as pd
 import numpy as np
+from sklearn.metrics import adjusted_rand_score, f1_score, accuracy_score
 
 import clustering
 
@@ -295,6 +296,8 @@ def executar_treinamento(dissimilarity_matrices,
     last_membership_degree = u0
     last_cost = J0
     
+#     print("Seed >W> ", seed)
+    
     for t in range(1, T):
 #         print(f"Passo {t}/{T}")
         
@@ -382,18 +385,60 @@ def export_best_result(data, file_name):
     with open(file_name, "wb") as f:
         pickle.dump(data, f)
 
+def import_best_result(file_name):
+    with open(file_name, "rb") as f:
+        return pickle.load(f)
+        
 def export_fuzzy_partitions_to_csv(data, file_name):
     df = pd.DataFrame(data["membership_degree"])
     df.to_csv(file_name, index=False, decimal=',')
     
 
-def executar_algoritmo_varias_vezes(dissimilarity_matrices, N, times=100, **kwargs):
+def report_run(run_number, data, report_file, name = None):
+    report = {k:v for k,v in data.items() if k not in ("membership_degree", "weight_matrix")}
+    if name:
+      report["name"] = name
+
+    report["run"] = run_number
+    classes = clustering.get_instances_class()
+    
+    members, predicted_classes = clustering.get_hard_patitions(data["membership_degree"])  
+    report["partition_entropy"] = clustering.calc_partition_entropy(data["membership_degree"])
+    report["modified_partition_coefficient"] = clustering.calc_modified_partition_coefficient(data["membership_degree"])
+    report["entropy"] = clustering.calc_partition_entropy(data["membership_degree"])
+    report["adjusted_rand_score"] = adjusted_rand_score(predicted_classes, classes)
+    
+    report["f1_micro"] = f1_score(predicted_classes, classes, average="micro")
+    report["f1_macro"] = f1_score(predicted_classes, classes, average="macro")
+    report["classification_error"] = 1 - accuracy_score(predicted_classes, classes)
+    
+    for j, g in enumerate(members):
+        report[f"g{j} size"] = len(g)
+    
+    
+    if os.path.exists(report_file):
+        pd.DataFrame([report]).to_csv(report_file, index=False, decimal=",", mode="a", header=False)
+    else:
+        pd.DataFrame([report]).to_csv(report_file, index=False, decimal=",", mode="a", header=True)
+    
+    
+    
+    
+def executar_algoritmo_varias_vezes(dissimilarity_matrices, 
+                                    N, 
+                                    times=100, 
+                                    name = None, 
+                                    report_file=None,  
+                                    **kwargs):
     best = None
     
     seeds = [18082020 + i for i in range(times)]
+    #seeds = [28082020 + i for i in range(times)]
+    
     with mp.Pool() as p:
         results = []
         for seed in seeds:
+            kwargs = dict(kwargs)
             kwargs["seed"] = seed
             r = p.apply_async(executar_treinamento, (dissimilarity_matrices, N), kwargs)
             results.append(r)
@@ -404,44 +449,132 @@ def executar_algoritmo_varias_vezes(dissimilarity_matrices, N, times=100, **kwar
             print(">> Cost: ", data["cost"])
             if (not best) or data["cost"] < best["cost"]:
                 best = data 
+                
+            if report_file:
+                report_run(i, data, report_file, name = name)
+             
         
             
     return best
 
-def buscar_melhores_parametros(qs, ms, dissimilarity_matrices, times=10, file_name = "data/melhores_parametros.csv"):
+def treinar_com_varios_parametros(qs, 
+                                  ms, 
+                                  dissimilarity_matrices, 
+                                  times=10,
+                                  name=None, 
+                                  report_file = "data/treinamento_com_varios_paramentros.csv"):
     resultados = []
 
-    for i, (m, q) in enumerate(product(ms, qs)):
+    for m, q in product(ms, qs):
         print(f">> q: {q} >> m: {m}")
-        best = executar_algoritmo_varias_vezes([fac_dis, fou_dis, kar_dis], 
+        executar_algoritmo_varias_vezes(dissimilarity_matrices, 
                                         N=2000, 
                                         q=q, 
                                         m=m,
+                                        name=name,
+                                        report_file=report_file,
                                         times=times)
 
 
-        members, predicted_classes = clustering.get_hard_patitions(best["membership_degree"])  
-        best["partition_entropy"] = clustering.calc_partition_entropy(best["membership_degree"])
-        best["modified_partition_coefficient"] = clustering.calc_modified_partition_coefficient(best["membership_degree"])
         
-        del best["membership_degree"]
-        del best["weight_matrix"]      
-
-        for j, g in enumerate(members):
-            best[f"g{j} size"] = len(g)
-
-        resultados.append(best)
-        pd.DataFrame(resultados).to_csv(file_name, index=False, decimal=",") 
- 
-if __name__ == "__main__":
+        
+def executar_algoritmo_varias_vezes_todas(times, report_file=None, **kwargs):
     fac_dis, fou_dis, kar_dis = carregar_matrizes_dissimiliradidades()
-    qs = list(range(2, 6))
-    ms = np.arange(1., 2.1, .1)
 
-    # fuzzy.buscar_melhores_parametros(qs, ms, [fac_dis, fou_dis, kar_dis])
-    print(">> FAC")
-    buscar_melhores_parametros(qs, ms, [fac_dis], file_name="data/melhores_parametros_fac.csv", times= 10)
-    print(">> FOU")
-    buscar_melhores_parametros(qs, ms, [fou_dis], file_name="data/melhores_parametros_fou.csv", times = 10)
-    print(">> DIS")
-    buscar_melhores_parametros(qs, ms, [kar_dis], file_name="data/melhores_parametros_kar.csv", times = 10)
+    melhor_resultado_todas = executar_algoritmo_varias_vezes([fac_dis, fou_dis, kar_dis], 
+                                                                2000, 
+                                                                report_file = report_file,
+                                                                times=100, **kwargs)
+
+    export_best_result(melhor_resultado_todas, "data/melhor_resultado_todas.pickle")
+    export_fuzzy_partitions_to_csv(melhor_resultado_todas, "data/fuzzy_partitions_todas.csv")
+
+def executar_algoritmo_varias_vezes_fac(times, report_file=None, **kwargs):
+    fac_dis, fou_dis, kar_dis = carregar_matrizes_dissimiliradidades()
+
+    melhor_resultado_todas = executar_algoritmo_varias_vezes([fac_dis], 
+                                                                2000, 
+                                                                report_file = report_file,
+                                                                times=100, **kwargs)
+
+    export_best_result(melhor_resultado_todas, "data/melhor_resultado_fac.pickle")
+    export_fuzzy_partitions_to_csv(melhor_resultado_todas, "data/fuzzy_partitions_fac.csv")
+
+def executar_algoritmo_varias_vezes_fou(times, report_file=None, **kwargs):
+    fac_dis, fou_dis, kar_dis = carregar_matrizes_dissimiliradidades()
+
+    melhor_resultado_todas = executar_algoritmo_varias_vezes([fou_dis], 
+                                                                2000, 
+                                                                report_file = report_file,
+                                                                times=100, **kwargs)
+
+    export_best_result(melhor_resultado_todas, "data/melhor_resultado_fou.pickle")
+    export_fuzzy_partitions_to_csv(melhor_resultado_todas, "data/fuzzy_partitions_fou.csv")
+
+def executar_algoritmo_varias_vezes_kar(times, report_file=None, **kwargs):
+    fac_dis, fou_dis, kar_dis = carregar_matrizes_dissimiliradidades()
+
+    melhor_resultado_todas = executar_algoritmo_varias_vezes([kar_dis], 
+                                                                2000, 
+                                                                report_file = report_file,
+                                                                times=100, **kwargs)
+
+    export_best_result(melhor_resultado_todas, "data/melhor_resultado_kar.pickle")
+    export_fuzzy_partitions_to_csv(melhor_resultado_todas, "data/fuzzy_partitions_kar.csv")
+
+
+if __name__ == "__main__":
+    #executar_algoritmo_varias_vezes_fou(times=100, 
+    #                                      q=2, 
+    #                                      m=1.1, 
+    #                                      report_file = "data/relatorio_varias_execucoes_fou.csv"
+    #)
+    #executar_algoritmo_varias_vezes_fou(times=100, 
+    #                                      q=2, 
+    #                                      m=1.1, 
+    #                                      report_file = "data/relatorio_varias_execucoes_kar.csv"
+    #)
+
+
+
+    fac_dis, fou_dis, kar_dis = carregar_matrizes_dissimiliradidades()
+    #qs = list(range(2, 6))
+    qs = [2]
+    ms = np.arange(1.2, 1.5, .1)
+
+
+    #treinar_com_varios_parametros(qs, 
+    #                              ms, 
+    #                              [fac_dis, fou_dis, kar_dis], 
+    #                              times=100,
+    #                              name="todas", 
+    #                              report_file = "data/treinamento_com_varios_paramentros.csv")
+
+    #treinar_com_varios_parametros(qs, 
+    #                              ms, 
+    #                              [fac_dis], 
+    #                              times=100,
+    #                              name="fac", 
+    #                              report_file = "data/treinamento_com_varios_paramentros.csv")
+
+    treinar_com_varios_parametros(qs, 
+                                  ms, 
+                                  [fou_dis], 
+                                  times=100,
+                                  name="fou", 
+                                  report_file = "data/treinamento_com_varios_paramentros.csv")
+
+    treinar_com_varios_parametros(qs, 
+                                  ms, 
+                                  [kar_dis], 
+                                  times=100,
+                                  name="kar", 
+                                  report_file = "data/treinamento_com_varios_paramentros.csv")
+
+#     # fuzzy.buscar_melhores_parametros(qs, ms, [fac_dis, fou_dis, kar_dis])
+#     print(">> FAC")
+#     buscar_melhores_parametros(qs, ms, [fac_dis], file_name="data/melhores_parametros_fac.csv", times= 10)
+#     print(">> FOU")
+#     buscar_melhores_parametros(qs, ms, [fou_dis], file_name="data/melhores_parametros_fou.csv", times = 10)
+#     print(">> DIS")
+#     buscar_melhores_parametros(qs, ms, [kar_dis], file_name="data/melhores_parametros_kar.csv", times = 10)
