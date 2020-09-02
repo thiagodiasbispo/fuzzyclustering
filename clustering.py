@@ -9,26 +9,29 @@ def get_hard_patitions(membership_degree):
         membership_degree: numpy array of shape N x K
     """
     
-    u = membership_degree
     members = []
     K = membership_degree.shape[1]
     
     # Obtendo o índice do grupo em que cada elemento possui maior valor de pertencimento
-    element_index_membership = u.argsort(axis=1)[:, -1]
-    
-    index_class = {}
-    for k in range(K):
-        # Para cada grupo k, extrai quais dos elementos possui maior grau de pertencimento para ele
-        memb = np.where(element_index_membership == k)[0]
-        members.append(memb)
-        index_class.update({m:k for m in memb})
-    
-    predicted_classes = [index_class[m] for m in sorted(index_class.keys())]
-    
-    return members, predicted_classes
+    membership = membership_degree.argsort(axis=1)[:, -1]
+    members = [np.where(membership == k)[0] for k in range(K)]
 
-def get_instances_class(qtd=10):
-    return list(chain(*[[i]*200 for i in range(qtd)]))
+    return members, membership
+
+def get_instances_class():
+    y_true = np.empty(2000)
+    y_true[0:200] = 0
+    y_true[200:400] = 1
+    y_true[400:600] = 2
+    y_true[600:800] = 3
+    y_true[800:1000] = 4
+    y_true[1000:1200] = 5
+    y_true[1200:1400] = 6
+    y_true[1400:1600] = 7
+    y_true[1600:1800] = 8
+    y_true[1800:2000] = 9
+    
+    return y_true
 
 def calc_partition_coefficient(membership_degree):
     n = membership_degree.shape[0]

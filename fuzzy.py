@@ -117,6 +117,11 @@ def get_prototypes(elements_qtd,
             dists_p = np.array([D[j][:, h] * l[k,j] for j in range(P)]) #shape: NxP
             sums_p = dists_p.sum(axis=0)
             soma = np.dot(u[:, k], sums_p)
+
+            #soma = sum([u[i,k] * sum([l[k,j] * D[j][i,h] for j in range(P)]) for i in  range(N)])
+
+            #print(f"Somas: {soma2} {soma}")
+
             if soma < menor_soma:
                 menor_soma = soma
                 menor_indice = h
@@ -153,38 +158,42 @@ def compute_relevance_weights(clusters_qtd,
 
     D = dissimilarity_matrices
     P = len(D)
-    Gk = prototypes
+    G = prototypes
     K = clusters_qtd
     N = elements_qtd
     u = np.power(adequacy_criterion, m)
     l = np.zeros((K, P))
 
-    def match(element, Dh, G):
+    def match(element, Dh, Gk):
         """
             Função auxiliar para cálculo de match entre um elemento 
             qualquer, os protótipos G de um cluster específico e uma matriz 
             de similaridade específica Dh.
         """
 
-        return Dh[element, G].sum()
+        return Dh[element, Gk].sum()
 
     for k in range(K):
         # Calculado o somatório do numerador da equação à esquerda da igualdade
-        weight_diss_sum1 = np.array([np.array([u[i, k] * match(i, D[h], Gk[k]) for i in range(N)]).sum()
+        weight_diss_sum1 = np.array([np.array([u[i, k] * match(i, D[h], G[k]) for i in range(N)]).sum()
                             for h in range(P)])
+
+        weight_diss_sum_prod = np.power(weight_diss_sum1.prod(), 1/P)
+
         for j in range(P):
      
             # Calculado o somatório do denominador da equação à esquerda da igualdade
-            weight_diss_sum2 = np.array([u[i, k] * match(i, D[j], Gk[k])
+            weight_diss_sum2 = np.array([u[i, k] * match(i, D[j], G[k])
                                     for i in range(N)]).sum()
             
-#             weight_diss_sum2 = weight_diss_sum1[j]
 
             # Executando a divisão da fração à esquerda da equação
-            l[k, j] = math.pow(weight_diss_sum1.prod(), 1/P) / weight_diss_sum2
+            l[k, j] = weight_diss_sum_prod / weight_diss_sum2
 
     return l
 
+
+# %load -s compute_membership_degree 'fuzzy.py'
 def compute_membership_degree(weight_matrix,
                               prototypes,
                               clusters_qtd,
@@ -222,7 +231,11 @@ def compute_membership_degree(weight_matrix,
 
     def ratio(element, k, h):
         r = match(l, k, element, G, D) / match(l, h, element, G, D)
-        return math.pow(r, 1/(m-1))
+        #r1 = np.array([l[k,j] * (D[j][element, G[k]].sum()) for j in range(P)]).sum()
+        #r2 = np.array([l[h,j] * (D[j][element, G[h]].sum()) for j in range(P)]).sum()
+        #r3 = r1/r2
+        #print(f"Ratio: {r} {r3}")
+        return np.power(r, 1/(m-1))
 
     for i in range(N):
         for k in range(K):
@@ -251,7 +264,13 @@ def assert_membership_degree_sum_one(u):
      # u.shape == (N,K)
     sums_k = u.sum(axis=1)
     assert round(sums_k.sum()) == u.shape[0], f"A soma dos pesos de relevância não é igual a 1 ({sums_k.sum()})"
-    
+
+def random_prototypes2(K, N, q, seed):
+    random.seed(seed)
+    protos = np.array(random.sample(range(N), K*q)).reshape(K, q)
+    return list(protos)
+
+
 def executar_treinamento(dissimilarity_matrices,
                        elements_qtd,
                        K=10,
@@ -295,8 +314,6 @@ def executar_treinamento(dissimilarity_matrices,
     
     last_membership_degree = u0
     last_cost = J0
-    
-#     print("Seed >W> ", seed)
     
     for t in range(1, T):
 #         print(f"Passo {t}/{T}")
@@ -346,7 +363,7 @@ def executar_treinamento(dissimilarity_matrices,
         last_prototypes = new_prototypes
         last_lambda = new_lambda
         last_membership_degree = new_degree
-#         print(">> Cost: ", new_cost)
+        print(f">> Cost ({seed}): ", new_cost)
         
         if abs(last_cost - new_cost) <= epsilon:
             last_cost = new_cost
@@ -365,6 +382,7 @@ def executar_treinamento(dissimilarity_matrices,
         "m":m,
         "seed": seed,
     }
+
     return data
 
 def carregar_matrizes_dissimiliradidades(data_path = None):
@@ -396,21 +414,23 @@ def export_fuzzy_partitions_to_csv(data, file_name):
 
 def report_run(run_number, data, report_file, name = None):
     report = {k:v for k,v in data.items() if k not in ("membership_degree", "weight_matrix")}
+
     if name:
       report["name"] = name
 
     report["run"] = run_number
+
     classes = clustering.get_instances_class()
     
     members, predicted_classes = clustering.get_hard_patitions(data["membership_degree"])  
     report["partition_entropy"] = clustering.calc_partition_entropy(data["membership_degree"])
     report["modified_partition_coefficient"] = clustering.calc_modified_partition_coefficient(data["membership_degree"])
     report["entropy"] = clustering.calc_partition_entropy(data["membership_degree"])
-    report["adjusted_rand_score"] = adjusted_rand_score(predicted_classes, classes)
+    report["adjusted_rand_score"] = adjusted_rand_score(classes, predicted_classes)
     
-    report["f1_micro"] = f1_score(predicted_classes, classes, average="micro")
-    report["f1_macro"] = f1_score(predicted_classes, classes, average="macro")
-    report["classification_error"] = 1 - accuracy_score(predicted_classes, classes)
+    report["f1_micro"] = f1_score(classes, predicted_classes, average="micro")
+    report["f1_macro"] = f1_score(classes, predicted_classes, average="macro")
+    report["classification_error"] = 1 - accuracy_score(classes, predicted_classes)
     
     for j, g in enumerate(members):
         report[f"g{j} size"] = len(g)
@@ -524,18 +544,18 @@ def executar_algoritmo_varias_vezes_kar(times, report_file=None, **kwargs):
 
 
 if __name__ == "__main__":
-    #executar_algoritmo_varias_vezes_fou(times=100, 
-    #                                      q=2, 
-    #                                      m=1.1, 
-    #                                      report_file = "data/relatorio_varias_execucoes_fou.csv"
-    #)
+    executar_algoritmo_varias_vezes_todas(times=100, 
+                                          q=2, 
+                                          m=1.6, 
+                                          report_file = "data/relatorio_varias_execucoes_todas.csv"
+    )
     #executar_algoritmo_varias_vezes_fou(times=100, 
     #                                      q=2, 
     #                                      m=1.1, 
     #                                      report_file = "data/relatorio_varias_execucoes_kar.csv"
     #)
 
-
+    sys.exit()
 
     fac_dis, fou_dis, kar_dis = carregar_matrizes_dissimiliradidades()
     #qs = list(range(2, 6))
@@ -543,19 +563,19 @@ if __name__ == "__main__":
     ms = np.arange(1.2, 1.5, .1)
 
 
-    #treinar_com_varios_parametros(qs, 
-    #                              ms, 
-    #                              [fac_dis, fou_dis, kar_dis], 
-    #                              times=100,
-    #                              name="todas", 
-    #                              report_file = "data/treinamento_com_varios_paramentros.csv")
+    treinar_com_varios_parametros(qs, 
+                                  ms, 
+                                  [fac_dis, fou_dis, kar_dis], 
+                                  times=100,
+                                  name="todas", 
+                                  report_file = "data/treinamento_com_varios_paramentros.csv")
 
-    #treinar_com_varios_parametros(qs, 
-    #                              ms, 
-    #                              [fac_dis], 
-    #                              times=100,
-    #                              name="fac", 
-    #                              report_file = "data/treinamento_com_varios_paramentros.csv")
+    treinar_com_varios_parametros(qs, 
+                                  ms, 
+                                  [fac_dis], 
+                                  times=100,
+                                  name="fac", 
+                                  report_file = "data/treinamento_com_varios_paramentros.csv")
 
     treinar_com_varios_parametros(qs, 
                                   ms, 
