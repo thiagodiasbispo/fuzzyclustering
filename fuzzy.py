@@ -245,14 +245,19 @@ def compute_membership_degree(weight_matrix,
     return u
 
 def random_prototypes(K, N, q, seed):
-    elements = set(range(N))
-    protos = []
-    random.seed(seed)
-    
-    for k in range(K):
-        protos.append(random.sample(elements, q))
-        elements -= set(protos[-1])
+    #random.seed(seed)
 
+    protos = []
+
+    for k in range(K):
+        G = [random.randint(0, N-1)]
+        while len(G) < q:
+          n = random.randint(0, N-1)
+          if  n not in G:
+            G.append(n)
+
+        protos.append(G)
+        
     return protos
 
 def assert_relevance_weights_prod_one(l):
@@ -290,7 +295,7 @@ def executar_treinamento(dissimilarity_matrices,
     last_membership_degree = None
     last_cost = None
     
-    assert_relevance_weights_prod_one(last_lambda)
+    #assert_relevance_weights_prod_one(last_lambda)
 
 #     print("Passo 0")
 #     print("Calculando matriz de adequação inicial (u0)")
@@ -314,7 +319,7 @@ def executar_treinamento(dissimilarity_matrices,
     
     last_membership_degree = u0
     last_cost = J0
-    
+    first_prototypes = last_prototypes
     for t in range(1, T):
 #         print(f"Passo {t}/{T}")
         
@@ -374,7 +379,8 @@ def executar_treinamento(dissimilarity_matrices,
     data = {
         "cost":last_cost,
         "membership_degree":last_membership_degree,
-        "prototypes":last_prototypes,
+        "first_prototypes": first_prototypes,
+        "last_prototypes":last_prototypes,
         "weight_matrix":last_lambda,
         "times": t,
         "q": q,
