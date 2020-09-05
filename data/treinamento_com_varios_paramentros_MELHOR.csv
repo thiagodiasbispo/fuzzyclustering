@@ -1,0 +1,2 @@
+cost,prototypes,times,q,K,m,seed,run,partition_entropy,modified_partition_coefficient,entropy,adjusted_rand_score,f1_micro,f1_macro,classification_error,g0 size,g1 size,g2 size,g3 size,g4 size,g5 size,g6 size,g7 size,g8 size,g9 size
+"6652,582133185385","[[78, 25], [692, 392], [588, 528], [692, 661], [1722, 1717], [692, 1722], [1722, 1717], [1890, 1831], [1722, 1689], [1890, 1864]]",7,2,10,"1,6",18082035,0,"0,990670253776116","0,005549615119655127","0,990670253776116","0,4633631920513403","0,623","0,582249446725411","0,377",235,232,271,293,81,20,261,302,163,142
